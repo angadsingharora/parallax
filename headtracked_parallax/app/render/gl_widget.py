@@ -19,6 +19,7 @@ from OpenGL.GL import (
     GL_RGBA,
     GL_SRC_ALPHA,
     GL_STATIC_DRAW,
+    GL_TEXTURE0,
     GL_TEXTURE_2D,
     GL_TEXTURE_MAG_FILTER,
     GL_TEXTURE_MIN_FILTER,
@@ -37,6 +38,7 @@ from OpenGL.GL import (
     glDeleteProgram,
     glDeleteTextures,
     glDeleteVertexArrays,
+    glDepthMask,
     glDrawArrays,
     glEnable,
     glEnableVertexAttribArray,
@@ -45,9 +47,11 @@ from OpenGL.GL import (
     glGenVertexArrays,
     glGetAttribLocation,
     glGetUniformLocation,
+    glActiveTexture,
     glTexImage2D,
     glTexParameteri,
     glUniform1f,
+    glUniform1i,
     glUniformMatrix4fv,
     glUseProgram,
     glVertexAttribPointer,
@@ -164,6 +168,8 @@ class ParallaxGLWidget(QOpenGLWidget):
 
             glBindVertexArray(0)
             self._load_textures()
+            glUseProgram(self.program)
+            glUniform1i(glGetUniformLocation(self.program, "u_tex"), 0)
             self.gl_failed = False
         except Exception as exc:
             self.gl_failed = True
@@ -171,6 +177,9 @@ class ParallaxGLWidget(QOpenGLWidget):
 
     def _load_textures(self) -> None:
         images = self.scene.load_qimages(self.depth_debug_mode)
+        if self.textures:
+            glDeleteTextures(len(self.textures), self.textures)
+            self.textures = []
         self.textures = glGenTextures(len(images))
         if isinstance(self.textures, int):
             self.textures = [self.textures]
@@ -182,7 +191,9 @@ class ParallaxGLWidget(QOpenGLWidget):
             # PySide6's QImage.bits() returns a sized memoryview; no setsize needed.
             buf = bytes(rgba.constBits())
             arr = np.frombuffer(buf, dtype=np.uint8).reshape((h, bpl // 4, 4))[:, :w, :]
-            arr = np.ascontiguousarray(arr)
+            # QImage data is top-left origin; OpenGL UVs are bottom-left origin.
+            arr = np.ascontiguousarray(np.flipud(arr))
+            glActiveTexture(GL_TEXTURE0)
             glBindTexture(GL_TEXTURE_2D, tex)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
@@ -228,6 +239,7 @@ class ParallaxGLWidget(QOpenGLWidget):
         vp = proj @ view
 
         glUseProgram(self.program)
+        glActiveTexture(GL_TEXTURE0)
         glBindVertexArray(self.vao)
 
         u_mvp = glGetUniformLocation(self.program, "u_mvp")
@@ -239,6 +251,8 @@ class ParallaxGLWidget(QOpenGLWidget):
         layers.sort(key=lambda it: it[1].z)  # most negative (far) first
 
         for idx, layer in layers:
+            # Keep painter-style compositing stable for semi-transparent layers.
+            glDepthMask(GL_FALSE)
             half_w, half_h = self._layer_half_extents(idx, layer)
             model = self.camera.model_matrix_for_layer(layer.z, half_w, half_h)
             mvp = vp @ model
@@ -247,6 +261,7 @@ class ParallaxGLWidget(QOpenGLWidget):
             if idx < len(self.textures):
                 glBindTexture(GL_TEXTURE_2D, self.textures[idx])
             glDrawArrays(GL_TRIANGLES, 0, 6)
+        glDepthMask(GL_TRUE)
 
         glBindVertexArray(0)
 
