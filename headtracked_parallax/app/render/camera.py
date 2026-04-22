@@ -66,8 +66,8 @@ class VirtualCamera:
     fov_y_deg: float = 58.0
 
     # Near/far planes of the projection.
-    z_near: float = 0.05
-    z_far: float = 200.0
+    z_near: float = 0.08
+    z_far: float = 260.0
 
     # Current eye position in world space (updated from head pose).
     eye_x: float = 0.0

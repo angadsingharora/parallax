@@ -209,10 +209,12 @@ class MainWindow(QMainWindow):
         self.controls.depth_changed.connect(self.on_parallax_z)
         self.controls.depth_spread_changed.connect(self.on_depth_spread)
         self.controls.fov_changed.connect(self.on_fov_changed)
+        self.controls.render_distance_changed.connect(self.on_render_distance_changed)
         self.controls.smoothing_changed.connect(self.on_smoothing)
         self.controls.deadzone_changed.connect(self.on_deadzone)
         self.controls.depth_debug_changed.connect(self.on_depth_debug_mode)
         self.controls.eye_refine_changed.connect(self.on_eye_refine)
+        self.controls.neutral_tone_changed.connect(self.on_neutral_tone_changed)
 
         act_mock = QAction("Toggle Mouse Mock", self)
         act_mock.triggered.connect(self.toggle_mouse_mock)
@@ -258,6 +260,9 @@ class MainWindow(QMainWindow):
     def on_fov_changed(self, v: float) -> None:
         self.gl.set_fov(v)
 
+    def on_render_distance_changed(self, v: float) -> None:
+        self.gl.set_render_distance(v)
+
     def on_smoothing(self, v: float) -> None:
         self.worker.set_smoothing_alpha(v)
 
@@ -269,6 +274,9 @@ class MainWindow(QMainWindow):
 
     def on_depth_debug_mode(self, enabled: bool) -> None:
         self.gl.set_depth_debug_mode(enabled)
+
+    def on_neutral_tone_changed(self, enabled: bool) -> None:
+        self.gl.set_neutral_tone(enabled)
 
     def toggle_mouse_mock(self) -> None:
         self.gl.use_mouse_mock = not self.gl.use_mouse_mock

@@ -19,10 +19,12 @@ class ControlsPanel(QWidget):
     depth_changed = Signal(float)
     depth_spread_changed = Signal(float)
     fov_changed = Signal(float)
+    render_distance_changed = Signal(float)
     smoothing_changed = Signal(float)
     deadzone_changed = Signal(float)
     depth_debug_changed = Signal(bool)
     eye_refine_changed = Signal(bool)
+    neutral_tone_changed = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -71,6 +73,14 @@ class ControlsPanel(QWidget):
         self.slider_fov.valueChanged.connect(lambda v: self.fov_changed.emit(float(v)))
         form.addRow("FOV", self.slider_fov)
 
+        self.slider_render_distance = QSlider(Qt.Horizontal)
+        self.slider_render_distance.setRange(120, 600)
+        self.slider_render_distance.setValue(260)
+        self.slider_render_distance.valueChanged.connect(
+            lambda v: self.render_distance_changed.emit(float(v))
+        )
+        form.addRow("Render Distance", self.slider_render_distance)
+
         self.slider_smoothing = QSlider(Qt.Horizontal)
         self.slider_smoothing.setRange(5, 80)
         self.slider_smoothing.setValue(25)
@@ -95,6 +105,11 @@ class ControlsPanel(QWidget):
         self.cb_eye = QCheckBox("Use Eye Refinement")
         self.cb_eye.toggled.connect(self.eye_refine_changed.emit)
         form.addRow(self.cb_eye)
+
+        self.cb_neutral_tone = QCheckBox("Neutral Tone")
+        self.cb_neutral_tone.setChecked(True)
+        self.cb_neutral_tone.toggled.connect(self.neutral_tone_changed.emit)
+        form.addRow(self.cb_neutral_tone)
 
         self.cb_depth_debug = QCheckBox("Depth Debug Mode")
         self.cb_depth_debug.toggled.connect(self.depth_debug_changed.emit)

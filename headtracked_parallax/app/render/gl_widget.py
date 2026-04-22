@@ -101,9 +101,11 @@ class ParallaxGLWidget(QOpenGLWidget):
         self.vbo = None
         self.u_mvp_loc = -1
         self.u_alpha_loc = -1
+        self.u_neutral_mix_loc = -1
         self.textures = []
         self.gl_failed = False
         self.gl_error = ""
+        self.neutral_tone_enabled = True
 
         self.last_frame_time = time.time()
         self.render_fps = 0.0
@@ -130,6 +132,12 @@ class ParallaxGLWidget(QOpenGLWidget):
 
     def set_fov(self, fov_deg: float) -> None:
         self.camera.fov_y_deg = max(38.0, min(95.0, float(fov_deg)))
+
+    def set_render_distance(self, z_far: float) -> None:
+        self.camera.z_far = max(self.camera.z_near + 1.0, min(800.0, float(z_far)))
+
+    def set_neutral_tone(self, enabled: bool) -> None:
+        self.neutral_tone_enabled = bool(enabled)
 
     def set_depth_debug_mode(self, enabled: bool) -> None:
         self.depth_debug_mode = enabled
@@ -181,7 +189,8 @@ class ParallaxGLWidget(QOpenGLWidget):
             glUniform1i(glGetUniformLocation(self.program, "u_tex"), 0)
             self.u_mvp_loc = glGetUniformLocation(self.program, "u_mvp")
             self.u_alpha_loc = glGetUniformLocation(self.program, "u_alpha")
-            if self.u_mvp_loc < 0 or self.u_alpha_loc < 0:
+            self.u_neutral_mix_loc = glGetUniformLocation(self.program, "u_neutral_mix")
+            if self.u_mvp_loc < 0 or self.u_alpha_loc < 0 or self.u_neutral_mix_loc < 0:
                 raise RuntimeError("Required shader uniforms not found")
             self.gl_failed = False
         except Exception as exc:
@@ -257,6 +266,7 @@ class ParallaxGLWidget(QOpenGLWidget):
         glUseProgram(self.program)
         glActiveTexture(GL_TEXTURE0)
         glBindVertexArray(self.vao)
+        glUniform1f(self.u_neutral_mix_loc, 1.0 if self.neutral_tone_enabled else 0.0)
 
         # Draw farthest first so depth-test + alpha discard composite cleanly.
         live_layers = self.scene.get_layers(self.depth_debug_mode)
@@ -294,7 +304,9 @@ class ParallaxGLWidget(QOpenGLWidget):
                 (
                     f"Strength xyz: {self.camera.parallax_strength_x:.2f} "
                     f"{self.camera.parallax_strength_y:.2f} {self.camera.parallax_strength_z:.2f} "
-                    f"| spread={self.scene.depth_spread:.2f} | depth_debug={'on' if self.depth_debug_mode else 'off'}"
+                    f"| spread={self.scene.depth_spread:.2f} | z_far={self.camera.z_far:.0f} "
+                    f"| neutral={'on' if self.neutral_tone_enabled else 'off'} "
+                    f"| depth_debug={'on' if self.depth_debug_mode else 'off'}"
                 ),
             )
             painter.end()
