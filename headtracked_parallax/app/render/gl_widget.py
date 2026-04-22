@@ -8,6 +8,7 @@ import numpy as np
 from OpenGL.GL import (
     GL_ARRAY_BUFFER,
     GL_BLEND,
+    GL_CLAMP_TO_EDGE,
     GL_COLOR_BUFFER_BIT,
     GL_DEPTH_BUFFER_BIT,
     GL_DEPTH_TEST,
@@ -15,6 +16,8 @@ from OpenGL.GL import (
     GL_FLOAT,
     GL_FRAGMENT_SHADER,
     GL_LINEAR,
+    GL_LINEAR_MIPMAP_LINEAR,
+    GL_MULTISAMPLE,
     GL_ONE_MINUS_SRC_ALPHA,
     GL_RGBA,
     GL_SRC_ALPHA,
@@ -23,6 +26,8 @@ from OpenGL.GL import (
     GL_TEXTURE_2D,
     GL_TEXTURE_MAG_FILTER,
     GL_TEXTURE_MIN_FILTER,
+    GL_TEXTURE_WRAP_S,
+    GL_TEXTURE_WRAP_T,
     GL_TRIANGLES,
     GL_TRUE,
     GL_UNSIGNED_BYTE,
@@ -42,10 +47,10 @@ from OpenGL.GL import (
     glDrawArrays,
     glEnable,
     glEnableVertexAttribArray,
+    glGenerateMipmap,
     glGenBuffers,
     glGenTextures,
     glGenVertexArrays,
-    glGetAttribLocation,
     glGetUniformLocation,
     glActiveTexture,
     glTexImage2D,
@@ -94,6 +99,8 @@ class ParallaxGLWidget(QOpenGLWidget):
         self.program = None
         self.vao = None
         self.vbo = None
+        self.u_mvp_loc = -1
+        self.u_alpha_loc = -1
         self.textures = []
         self.gl_failed = False
         self.gl_error = ""
@@ -142,6 +149,7 @@ class ParallaxGLWidget(QOpenGLWidget):
         try:
             glEnable(GL_DEPTH_TEST)
             glEnable(GL_BLEND)
+            glEnable(GL_MULTISAMPLE)
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
             shader_dir = Path(__file__).parent / "shaders"
@@ -159,8 +167,9 @@ class ParallaxGLWidget(QOpenGLWidget):
             glBufferData(GL_ARRAY_BUFFER, VERTICES.nbytes, VERTICES, GL_STATIC_DRAW)
 
             stride = 4 * 4
-            pos_loc = glGetAttribLocation(self.program, "a_pos")
-            uv_loc = glGetAttribLocation(self.program, "a_uv")
+            # Shader uses explicit layout qualifiers: a_pos=0, a_uv=1.
+            pos_loc = 0
+            uv_loc = 1
             glEnableVertexAttribArray(pos_loc)
             glVertexAttribPointer(pos_loc, 2, GL_FLOAT, GL_FALSE, stride, None)
             glEnableVertexAttribArray(uv_loc)
@@ -170,6 +179,10 @@ class ParallaxGLWidget(QOpenGLWidget):
             self._load_textures()
             glUseProgram(self.program)
             glUniform1i(glGetUniformLocation(self.program, "u_tex"), 0)
+            self.u_mvp_loc = glGetUniformLocation(self.program, "u_mvp")
+            self.u_alpha_loc = glGetUniformLocation(self.program, "u_alpha")
+            if self.u_mvp_loc < 0 or self.u_alpha_loc < 0:
+                raise RuntimeError("Required shader uniforms not found")
             self.gl_failed = False
         except Exception as exc:
             self.gl_failed = True
@@ -195,8 +208,10 @@ class ParallaxGLWidget(QOpenGLWidget):
             arr = np.ascontiguousarray(np.flipud(arr))
             glActiveTexture(GL_TEXTURE0)
             glBindTexture(GL_TEXTURE_2D, tex)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
             glTexImage2D(
                 GL_TEXTURE_2D,
                 0,
@@ -208,6 +223,7 @@ class ParallaxGLWidget(QOpenGLWidget):
                 GL_UNSIGNED_BYTE,
                 arr,
             )
+            glGenerateMipmap(GL_TEXTURE_2D)
 
     def resizeGL(self, w: int, h: int) -> None:
         glViewport(0, 0, w, h)
@@ -242,9 +258,6 @@ class ParallaxGLWidget(QOpenGLWidget):
         glActiveTexture(GL_TEXTURE0)
         glBindVertexArray(self.vao)
 
-        u_mvp = glGetUniformLocation(self.program, "u_mvp")
-        u_alpha = glGetUniformLocation(self.program, "u_alpha")
-
         # Draw farthest first so depth-test + alpha discard composite cleanly.
         live_layers = self.scene.get_layers(self.depth_debug_mode)
         layers = list(enumerate(live_layers))
@@ -256,8 +269,8 @@ class ParallaxGLWidget(QOpenGLWidget):
             half_w, half_h = self._layer_half_extents(idx, layer)
             model = self.camera.model_matrix_for_layer(layer.z, half_w, half_h)
             mvp = vp @ model
-            glUniformMatrix4fv(u_mvp, 1, GL_TRUE, mvp.astype(np.float32))
-            glUniform1f(u_alpha, layer.alpha)
+            glUniformMatrix4fv(self.u_mvp_loc, 1, GL_TRUE, mvp.astype(np.float32))
+            glUniform1f(self.u_alpha_loc, layer.alpha)
             if idx < len(self.textures):
                 glBindTexture(GL_TEXTURE_2D, self.textures[idx])
             glDrawArrays(GL_TRIANGLES, 0, 6)
