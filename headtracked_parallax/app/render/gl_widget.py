@@ -30,8 +30,10 @@ from OpenGL.GL import (
     GL_TEXTURE_WRAP_T,
     GL_TRIANGLES,
     GL_TRUE,
+    GL_UNPACK_ALIGNMENT,
     GL_UNSIGNED_BYTE,
     GL_VERTEX_SHADER,
+    GL_EXTENSIONS,
     glBindBuffer,
     glBindTexture,
     glBindVertexArray,
@@ -48,6 +50,8 @@ from OpenGL.GL import (
     glEnable,
     glEnableVertexAttribArray,
     glGenerateMipmap,
+    glGetFloatv,
+    glGetString,
     glGenBuffers,
     glGenTextures,
     glGenVertexArrays,
@@ -55,12 +59,14 @@ from OpenGL.GL import (
     glActiveTexture,
     glTexImage2D,
     glTexParameteri,
+    glTexParameterf,
     glUniform1f,
     glUniform1i,
     glUniformMatrix4fv,
     glUseProgram,
     glVertexAttribPointer,
     glViewport,
+    glPixelStorei,
 )
 from OpenGL.GL.shaders import compileProgram, compileShader
 from PySide6.QtCore import QTimer, Qt
@@ -70,6 +76,15 @@ from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from ..types import NormalizedPose
 from .camera import VirtualCamera
 from .scene import DemoScene
+
+try:
+    from OpenGL.GL.EXT.texture_filter_anisotropic import (
+        GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT,
+        GL_TEXTURE_MAX_ANISOTROPY_EXT,
+    )
+except Exception:
+    GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT = None
+    GL_TEXTURE_MAX_ANISOTROPY_EXT = None
 
 
 VERTICES = np.array(
@@ -106,6 +121,7 @@ class ParallaxGLWidget(QOpenGLWidget):
         self.gl_failed = False
         self.gl_error = ""
         self.neutral_tone_enabled = True
+        self.max_anisotropy = 1.0
 
         self.last_frame_time = time.time()
         self.render_fps = 0.0
@@ -127,7 +143,8 @@ class ParallaxGLWidget(QOpenGLWidget):
 
     def set_depth_spread(self, spread: float) -> None:
         self.scene.set_depth_spread(spread)
-        if self.program:
+        # Normal mode geometry depth changes do not require texture rebuild.
+        if self.program and self.depth_debug_mode:
             self._load_textures()
 
     def set_fov(self, fov_deg: float) -> None:
@@ -159,6 +176,7 @@ class ParallaxGLWidget(QOpenGLWidget):
             glEnable(GL_BLEND)
             glEnable(GL_MULTISAMPLE)
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
 
             shader_dir = Path(__file__).parent / "shaders"
             vert = (shader_dir / "layer.vert").read_text(encoding="utf-8")
@@ -192,10 +210,23 @@ class ParallaxGLWidget(QOpenGLWidget):
             self.u_neutral_mix_loc = glGetUniformLocation(self.program, "u_neutral_mix")
             if self.u_mvp_loc < 0 or self.u_alpha_loc < 0 or self.u_neutral_mix_loc < 0:
                 raise RuntimeError("Required shader uniforms not found")
+            self.max_anisotropy = self._query_anisotropy_limit()
             self.gl_failed = False
         except Exception as exc:
             self.gl_failed = True
             self.gl_error = str(exc)
+
+    def _query_anisotropy_limit(self) -> float:
+        if GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT is None:
+            return 1.0
+        try:
+            ext_raw = glGetString(GL_EXTENSIONS)
+            ext = ext_raw.decode("ascii", errors="ignore") if ext_raw else ""
+            if "GL_EXT_texture_filter_anisotropic" not in ext:
+                return 1.0
+            return max(1.0, float(glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT)))
+        except Exception:
+            return 1.0
 
     def _load_textures(self) -> None:
         images = self.scene.load_qimages(self.depth_debug_mode)
@@ -221,6 +252,8 @@ class ParallaxGLWidget(QOpenGLWidget):
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            if GL_TEXTURE_MAX_ANISOTROPY_EXT is not None and self.max_anisotropy > 1.0:
+                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, min(4.0, self.max_anisotropy))
             glTexImage2D(
                 GL_TEXTURE_2D,
                 0,
