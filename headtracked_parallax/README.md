@@ -24,6 +24,14 @@ pip install -r requirements.txt
 python main.py
 ```
 
+Optional rendering platform override:
+
+```bash
+# desktop | angle | software
+set PARALLAX_RENDERING_PLATFORM=desktop
+python main.py
+```
+
 ## Controls
 
 - `Calibrate Neutral`: capture current posture as center.
