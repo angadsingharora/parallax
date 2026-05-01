@@ -210,6 +210,7 @@ class MainWindow(QMainWindow):
         self.controls.depth_spread_changed.connect(self.on_depth_spread)
         self.controls.fov_changed.connect(self.on_fov_changed)
         self.controls.render_distance_changed.connect(self.on_render_distance_changed)
+        self.controls.render_fps_changed.connect(self.on_render_fps_changed)
         self.controls.smoothing_changed.connect(self.on_smoothing)
         self.controls.deadzone_changed.connect(self.on_deadzone)
         self.controls.depth_debug_changed.connect(self.on_depth_debug_mode)
@@ -262,6 +263,9 @@ class MainWindow(QMainWindow):
 
     def on_render_distance_changed(self, v: float) -> None:
         self.gl.set_render_distance(v)
+
+    def on_render_fps_changed(self, v: float) -> None:
+        self.gl.set_target_fps(v)
 
     def on_smoothing(self, v: float) -> None:
         self.worker.set_smoothing_alpha(v)

@@ -20,6 +20,7 @@ class ControlsPanel(QWidget):
     depth_spread_changed = Signal(float)
     fov_changed = Signal(float)
     render_distance_changed = Signal(float)
+    render_fps_changed = Signal(float)
     smoothing_changed = Signal(float)
     deadzone_changed = Signal(float)
     depth_debug_changed = Signal(bool)
@@ -80,6 +81,12 @@ class ControlsPanel(QWidget):
             lambda v: self.render_distance_changed.emit(float(v))
         )
         form.addRow("Render Distance", self.slider_render_distance)
+
+        self.slider_render_fps = QSlider(Qt.Horizontal)
+        self.slider_render_fps.setRange(20, 240)
+        self.slider_render_fps.setValue(60)
+        self.slider_render_fps.valueChanged.connect(lambda v: self.render_fps_changed.emit(float(v)))
+        form.addRow("Render FPS", self.slider_render_fps)
 
         self.slider_smoothing = QSlider(Qt.Horizontal)
         self.slider_smoothing.setRange(5, 80)

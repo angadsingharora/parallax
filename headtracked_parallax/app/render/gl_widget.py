@@ -125,10 +125,12 @@ class ParallaxGLWidget(QOpenGLWidget):
 
         self.last_frame_time = time.time()
         self.render_fps = 0.0
+        self.target_fps = 60.0
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update)
-        self.timer.start(16)
+        self.timer.setTimerType(Qt.PreciseTimer)
+        self._apply_render_timer()
 
     def set_pose(self, pose: NormalizedPose) -> None:
         self.pose = pose
@@ -152,6 +154,14 @@ class ParallaxGLWidget(QOpenGLWidget):
 
     def set_render_distance(self, z_far: float) -> None:
         self.camera.z_far = max(self.camera.z_near + 1.0, min(800.0, float(z_far)))
+
+    def set_target_fps(self, fps: float) -> None:
+        self.target_fps = max(20.0, min(240.0, float(fps)))
+        self._apply_render_timer()
+
+    def _apply_render_timer(self) -> None:
+        interval_ms = max(4, int(round(1000.0 / self.target_fps)))
+        self.timer.start(interval_ms)
 
     def set_neutral_tone(self, enabled: bool) -> None:
         self.neutral_tone_enabled = bool(enabled)
@@ -338,6 +348,7 @@ class ParallaxGLWidget(QOpenGLWidget):
                     f"Strength xyz: {self.camera.parallax_strength_x:.2f} "
                     f"{self.camera.parallax_strength_y:.2f} {self.camera.parallax_strength_z:.2f} "
                     f"| spread={self.scene.depth_spread:.2f} | z_far={self.camera.z_far:.0f} "
+                    f"| target_fps={self.target_fps:.0f} "
                     f"| neutral={'on' if self.neutral_tone_enabled else 'off'} "
                     f"| depth_debug={'on' if self.depth_debug_mode else 'off'}"
                 ),
