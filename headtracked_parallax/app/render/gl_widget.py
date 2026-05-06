@@ -212,6 +212,7 @@ class ParallaxGLWidget(QOpenGLWidget):
             glVertexAttribPointer(uv_loc, 2, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(8))
 
             glBindVertexArray(0)
+            self.max_anisotropy = self._query_anisotropy_limit()
             self._load_textures()
             glUseProgram(self.program)
             glUniform1i(glGetUniformLocation(self.program, "u_tex"), 0)
@@ -220,7 +221,6 @@ class ParallaxGLWidget(QOpenGLWidget):
             self.u_neutral_mix_loc = glGetUniformLocation(self.program, "u_neutral_mix")
             if self.u_mvp_loc < 0 or self.u_alpha_loc < 0 or self.u_neutral_mix_loc < 0:
                 raise RuntimeError("Required shader uniforms not found")
-            self.max_anisotropy = self._query_anisotropy_limit()
             self.gl_failed = False
         except Exception as exc:
             self.gl_failed = True
@@ -369,6 +369,9 @@ class ParallaxGLWidget(QOpenGLWidget):
         self.pose = NormalizedPose(x=self.pose.x, y=self.pose.y, z=float(np.clip(self.pose.z + dz, -1.0, 1.0)), valid=True)
 
     def cleanup(self) -> None:
+        # Ensure a current context for GL resource deletion on strict drivers.
+        if self.context() is not None:
+            self.makeCurrent()
         if self.vbo:
             glDeleteBuffers(1, [self.vbo])
         if self.vao:
@@ -377,6 +380,8 @@ class ParallaxGLWidget(QOpenGLWidget):
             glDeleteProgram(self.program)
         if self.textures:
             glDeleteTextures(len(self.textures), self.textures)
+        if self.context() is not None:
+            self.doneCurrent()
 
     def closeEvent(self, event):
         try:
