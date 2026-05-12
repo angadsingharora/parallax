@@ -24,11 +24,26 @@ from PySide6.QtWidgets import QApplication
 from app.ui.main_window import MainWindow
 
 
+def _resolve_qt_opengl(requested: str, platform_name: str) -> str | None:
+    requested = requested.strip().lower()
+    if not requested:
+        return None
+    if requested == "auto":
+        return "angle" if platform_name.startswith("win") else "desktop"
+    qt_opengl_by_platform = {
+        "desktop": "desktop",
+        "angle": "angle",
+        "software": "software",
+    }
+    return qt_opengl_by_platform.get(requested)
+
+
 def _apply_rendering_platform() -> None:
     """
     Configure Qt rendering backend from PARALLAX_RENDERING_PLATFORM.
 
     Supported values:
+    - auto: angle on Windows, desktop elsewhere
     - desktop: native desktop OpenGL
     - angle: ANGLE backend on Windows
     - software: software rasterization
@@ -37,16 +52,11 @@ def _apply_rendering_platform() -> None:
     if not requested:
         return
 
-    qt_opengl_by_platform = {
-        "desktop": "desktop",
-        "angle": "angle",
-        "software": "software",
-    }
-    qt_opengl = qt_opengl_by_platform.get(requested)
+    qt_opengl = _resolve_qt_opengl(requested, sys.platform)
     if qt_opengl is None:
         print(
             "Ignoring unsupported PARALLAX_RENDERING_PLATFORM value "
-            f"'{requested}'. Expected one of: desktop, angle, software.",
+            f"'{requested}'. Expected one of: auto, desktop, angle, software.",
             file=sys.stderr,
         )
         return

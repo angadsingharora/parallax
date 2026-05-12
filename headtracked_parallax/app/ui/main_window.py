@@ -216,6 +216,8 @@ class MainWindow(QMainWindow):
         self.controls.depth_debug_changed.connect(self.on_depth_debug_mode)
         self.controls.eye_refine_changed.connect(self.on_eye_refine)
         self.controls.neutral_tone_changed.connect(self.on_neutral_tone_changed)
+        self.controls.cinematic_drift_changed.connect(self.on_cinematic_drift_changed)
+        self.controls.drift_intensity_changed.connect(self.on_drift_intensity_changed)
 
         act_mock = QAction("Toggle Mouse Mock", self)
         act_mock.triggered.connect(self.toggle_mouse_mock)
@@ -281,6 +283,12 @@ class MainWindow(QMainWindow):
 
     def on_neutral_tone_changed(self, enabled: bool) -> None:
         self.gl.set_neutral_tone(enabled)
+
+    def on_cinematic_drift_changed(self, enabled: bool) -> None:
+        self.gl.set_cinematic_drift(enabled)
+
+    def on_drift_intensity_changed(self, v: float) -> None:
+        self.gl.set_drift_intensity(v)
 
     def toggle_mouse_mock(self) -> None:
         self.gl.use_mouse_mock = not self.gl.use_mouse_mock

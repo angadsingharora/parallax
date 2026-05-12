@@ -27,7 +27,7 @@ python main.py
 Optional rendering platform override:
 
 ```bash
-# desktop | angle | software
+# auto | desktop | angle | software
 set PARALLAX_RENDERING_PLATFORM=desktop
 python main.py
 ```
@@ -40,6 +40,8 @@ python main.py
 - `Smoothing`: EMA tracking smoothness.
 - `Deadzone`: small movement suppression around neutral.
 - `Debug Overlay`: render debug values.
+- `Cinematic Drift`: subtle procedural motion that keeps depth feeling alive.
+- `Drift Intensity`: how strong cinematic drift is.
 - `Fullscreen`: fullscreen demo mode.
 - Menu action `Toggle Mouse Mock`: use mouse+wheel instead of webcam tracking.
 

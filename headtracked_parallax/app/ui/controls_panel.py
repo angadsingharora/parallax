@@ -26,6 +26,8 @@ class ControlsPanel(QWidget):
     depth_debug_changed = Signal(bool)
     eye_refine_changed = Signal(bool)
     neutral_tone_changed = Signal(bool)
+    cinematic_drift_changed = Signal(bool)
+    drift_intensity_changed = Signal(float)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -117,6 +119,19 @@ class ControlsPanel(QWidget):
         self.cb_neutral_tone.setChecked(True)
         self.cb_neutral_tone.toggled.connect(self.neutral_tone_changed.emit)
         form.addRow(self.cb_neutral_tone)
+
+        self.cb_cinematic_drift = QCheckBox("Cinematic Drift")
+        self.cb_cinematic_drift.setChecked(True)
+        self.cb_cinematic_drift.toggled.connect(self.cinematic_drift_changed.emit)
+        form.addRow(self.cb_cinematic_drift)
+
+        self.slider_drift_intensity = QSlider(Qt.Horizontal)
+        self.slider_drift_intensity.setRange(0, 100)
+        self.slider_drift_intensity.setValue(45)
+        self.slider_drift_intensity.valueChanged.connect(
+            lambda v: self.drift_intensity_changed.emit(v / 100.0)
+        )
+        form.addRow("Drift Intensity", self.slider_drift_intensity)
 
         self.cb_depth_debug = QCheckBox("Depth Debug Mode")
         self.cb_depth_debug.toggled.connect(self.depth_debug_changed.emit)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ctypes
+import math
 import time
 from pathlib import Path
 
@@ -110,6 +111,9 @@ class ParallaxGLWidget(QOpenGLWidget):
         self.use_mouse_mock = False
         self.show_debug = True
         self.depth_debug_mode = False
+        self.cinematic_drift_enabled = True
+        self.drift_intensity = 0.45
+        self._start_time = time.time()
 
         self.program = None
         self.vao = None
@@ -171,6 +175,37 @@ class ParallaxGLWidget(QOpenGLWidget):
         self.camera.depth_debug_mode = enabled
         if self.program:
             self._load_textures()
+
+    def set_cinematic_drift(self, enabled: bool) -> None:
+        self.cinematic_drift_enabled = bool(enabled)
+
+    def set_drift_intensity(self, v: float) -> None:
+        self.drift_intensity = max(0.0, min(1.0, float(v)))
+
+    def _effective_pose(self, pose: NormalizedPose, now: float) -> NormalizedPose:
+        if not self.cinematic_drift_enabled or self.drift_intensity <= 1e-3:
+            return pose
+
+        t = now - self._start_time
+        amp = self.drift_intensity
+        drift_x = math.sin(t * 0.40) * 0.22 * amp
+        drift_y = math.cos(t * 0.33) * 0.16 * amp
+        drift_z = math.sin(t * 0.27 + 0.8) * 0.14 * amp
+
+        if not pose.valid:
+            return NormalizedPose(x=drift_x, y=drift_y, z=drift_z, valid=True, timestamp=now)
+
+        blend = 0.28 * amp
+        return NormalizedPose(
+            x=float(np.clip(pose.x + drift_x * blend, -1.0, 1.0)),
+            y=float(np.clip(pose.y + drift_y * blend, -1.0, 1.0)),
+            z=float(np.clip(pose.z + drift_z * blend, -1.0, 1.0)),
+            yaw=pose.yaw,
+            pitch=pose.pitch,
+            roll=pose.roll,
+            valid=True,
+            timestamp=pose.timestamp,
+        )
 
     def _layer_half_extents(self, idx: int, layer) -> tuple[float, float]:
         """How big the quad is in world units. Far layers are a bit larger so
@@ -296,7 +331,7 @@ class ParallaxGLWidget(QOpenGLWidget):
             painter.end()
             return
 
-        pose = self.pose
+        pose = self._effective_pose(self.pose, now)
         self.camera.update_from_head_pose(pose)
 
         w = max(1, self.width())
@@ -350,7 +385,8 @@ class ParallaxGLWidget(QOpenGLWidget):
                     f"| spread={self.scene.depth_spread:.2f} | z_far={self.camera.z_far:.0f} "
                     f"| target_fps={self.target_fps:.0f} "
                     f"| neutral={'on' if self.neutral_tone_enabled else 'off'} "
-                    f"| depth_debug={'on' if self.depth_debug_mode else 'off'}"
+                    f"| depth_debug={'on' if self.depth_debug_mode else 'off'} "
+                    f"| drift={'on' if self.cinematic_drift_enabled else 'off'}:{self.drift_intensity:.2f}"
                 ),
             )
             painter.end()
