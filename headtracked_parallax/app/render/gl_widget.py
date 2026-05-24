@@ -154,7 +154,7 @@ class ParallaxGLWidget(QOpenGLWidget):
             self._load_textures()
 
     def set_fov(self, fov_deg: float) -> None:
-        self.camera.fov_y_deg = max(38.0, min(95.0, float(fov_deg)))
+        self.camera.fov_y_deg = max(32.0, min(105.0, float(fov_deg)))
 
     def set_render_distance(self, z_far: float) -> None:
         self.camera.z_far = max(self.camera.z_near + 1.0, min(800.0, float(z_far)))
