@@ -351,9 +351,9 @@ class ParallaxGLWidget(QOpenGLWidget):
         layers = list(enumerate(live_layers))
         layers.sort(key=lambda it: it[1].z)  # most negative (far) first
 
+        # Keep painter-style compositing stable for semi-transparent layers.
+        glDepthMask(GL_FALSE)
         for idx, layer in layers:
-            # Keep painter-style compositing stable for semi-transparent layers.
-            glDepthMask(GL_FALSE)
             half_w, half_h = self._layer_half_extents(idx, layer)
             model = self.camera.model_matrix_for_layer(layer.z, half_w, half_h)
             mvp = vp @ model

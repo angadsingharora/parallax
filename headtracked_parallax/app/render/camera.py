@@ -33,6 +33,30 @@ def _scale(sx: float, sy: float, sz: float) -> np.ndarray:
     return m
 
 
+def _rotate_x(deg: float) -> np.ndarray:
+    rad = np.radians(deg)
+    c = float(np.cos(rad))
+    s = float(np.sin(rad))
+    m = np.eye(4, dtype=np.float32)
+    m[1, 1] = c
+    m[1, 2] = -s
+    m[2, 1] = s
+    m[2, 2] = c
+    return m
+
+
+def _rotate_y(deg: float) -> np.ndarray:
+    rad = np.radians(deg)
+    c = float(np.cos(rad))
+    s = float(np.sin(rad))
+    m = np.eye(4, dtype=np.float32)
+    m[0, 0] = c
+    m[0, 2] = s
+    m[2, 0] = -s
+    m[2, 2] = c
+    return m
+
+
 def _frustum(left: float, right: float, bottom: float, top: float,
              z_near: float, z_far: float) -> np.ndarray:
     """Standard OpenGL asymmetric frustum (column-major math, returned row-major)."""
@@ -74,6 +98,10 @@ class VirtualCamera:
     eye_y: float = 0.0
     eye_z: float = 2.4
     depth_debug_mode: bool = False
+    head_yaw: float = 0.0
+    head_pitch: float = 0.0
+    max_yaw_tilt_deg: float = 7.0
+    max_pitch_tilt_deg: float = 5.0
 
     def update_from_head_pose(self, pose: NormalizedPose) -> None:
         if not pose.valid:
@@ -81,18 +109,24 @@ class VirtualCamera:
             self.eye_x *= 0.9
             self.eye_y *= 0.9
             self.eye_z = self.base_distance + (self.eye_z - self.base_distance) * 0.9
+            self.head_yaw *= 0.9
+            self.head_pitch *= 0.9
             return
         debug_boost = 1.65 if self.depth_debug_mode else 1.0
         self.eye_x = float(pose.x) * self.parallax_strength_x * debug_boost
         self.eye_y = float(-pose.y) * self.parallax_strength_y * debug_boost
         self.eye_z = self.base_distance + float(pose.z) * self.parallax_strength_z * debug_boost
+        self.head_yaw = float(np.clip(pose.yaw, -1.0, 1.0))
+        self.head_pitch = float(np.clip(pose.pitch, -1.0, 1.0))
         # Don't let the eye crash through the window.
         if self.eye_z < self.z_near + 0.05:
             self.eye_z = self.z_near + 0.05
 
     def get_view_matrix(self) -> np.ndarray:
-        """Pure translation: keep the camera axis-aligned with the screen."""
-        return _translate(-self.eye_x, -self.eye_y, -self.eye_z)
+        """Eye translation plus subtle head-driven tilt for stronger depth cues."""
+        yaw_deg = -self.head_yaw * self.max_yaw_tilt_deg
+        pitch_deg = self.head_pitch * self.max_pitch_tilt_deg
+        return _rotate_x(pitch_deg) @ _rotate_y(yaw_deg) @ _translate(-self.eye_x, -self.eye_y, -self.eye_z)
 
     def get_projection_matrix(self, aspect: float) -> np.ndarray:
         """Off-axis frustum keyed to the eye position so the screen acts as a window."""
