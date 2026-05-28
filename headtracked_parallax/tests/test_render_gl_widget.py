@@ -1,4 +1,7 @@
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 from app.render import gl_widget as gw
 
@@ -81,3 +84,55 @@ def test_cleanup_makes_context_current_before_gl_deletes(monkeypatch):
     assert ("del_vao", 1, (22,)) in events
     assert ("del_program", 33) in events
     assert ("del_tex", 2, (44, 55)) in events
+
+
+def test_apply_interaction_overrides_updates_camera_state():
+    w = _bare_widget()
+    w.pan_x = 0.3
+    w.pan_y = -0.2
+    w.zoom_offset = -0.4
+    w.orbit_yaw_deg = 3.5
+    w.orbit_pitch_deg = -2.0
+    w.camera = SimpleNamespace(
+        eye_x=1.0,
+        eye_y=2.0,
+        eye_z=3.0,
+        z_near=0.1,
+        head_yaw=0.1,
+        head_pitch=-0.2,
+        max_yaw_tilt_deg=7.0,
+        max_pitch_tilt_deg=5.0,
+    )
+
+    gw.ParallaxGLWidget._apply_interaction_overrides(w)
+
+    assert w.camera.eye_x == pytest.approx(1.3)
+    assert w.camera.eye_y == pytest.approx(1.8)
+    assert w.camera.eye_z == pytest.approx(2.6)
+    assert w.camera.head_yaw == pytest.approx(0.6)
+    assert w.camera.head_pitch == pytest.approx(-0.6)
+
+
+def test_apply_interaction_overrides_clamps_zoom_and_head():
+    w = _bare_widget()
+    w.pan_x = 0.0
+    w.pan_y = 0.0
+    w.zoom_offset = -10.0
+    w.orbit_yaw_deg = 30.0
+    w.orbit_pitch_deg = -30.0
+    w.camera = SimpleNamespace(
+        eye_x=0.0,
+        eye_y=0.0,
+        eye_z=0.2,
+        z_near=0.1,
+        head_yaw=0.9,
+        head_pitch=-0.9,
+        max_yaw_tilt_deg=7.0,
+        max_pitch_tilt_deg=5.0,
+    )
+
+    gw.ParallaxGLWidget._apply_interaction_overrides(w)
+
+    assert w.camera.eye_z == pytest.approx(0.15)
+    assert w.camera.head_yaw == 1.0
+    assert w.camera.head_pitch == -1.0

@@ -70,7 +70,7 @@ from OpenGL.GL import (
     glPixelStorei,
 )
 from OpenGL.GL.shaders import compileProgram, compileShader
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QPointF, QTimer, Qt
 from PySide6.QtGui import QImage, QPainter
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
@@ -130,6 +130,14 @@ class ParallaxGLWidget(QOpenGLWidget):
         self.last_frame_time = time.time()
         self.render_fps = 0.0
         self.target_fps = 60.0
+        self.orbit_yaw_deg = 0.0
+        self.orbit_pitch_deg = 0.0
+        self.pan_x = 0.0
+        self.pan_y = 0.0
+        self.zoom_offset = 0.0
+        self._drag_left = False
+        self._drag_right = False
+        self._last_mouse_pos = QPointF(0.0, 0.0)
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update)
@@ -333,6 +341,7 @@ class ParallaxGLWidget(QOpenGLWidget):
 
         pose = self._effective_pose(self.pose, now)
         self.camera.update_from_head_pose(pose)
+        self._apply_interaction_overrides()
 
         w = max(1, self.width())
         h = max(1, self.height())
@@ -391,18 +400,82 @@ class ParallaxGLWidget(QOpenGLWidget):
             )
             painter.end()
 
+    def _apply_interaction_overrides(self) -> None:
+        self.camera.eye_x += self.pan_x
+        self.camera.eye_y += self.pan_y
+        self.camera.eye_z = max(self.camera.z_near + 0.05, self.camera.eye_z + self.zoom_offset)
+        yaw_norm = self.orbit_yaw_deg / max(1e-3, self.camera.max_yaw_tilt_deg)
+        pitch_norm = self.orbit_pitch_deg / max(1e-3, self.camera.max_pitch_tilt_deg)
+        self.camera.head_yaw = float(np.clip(self.camera.head_yaw + yaw_norm, -1.0, 1.0))
+        self.camera.head_pitch = float(np.clip(self.camera.head_pitch + pitch_norm, -1.0, 1.0))
+
     def mouseMoveEvent(self, event):
-        if not self.use_mouse_mock:
+        pos = event.position()
+        dx = float(pos.x() - self._last_mouse_pos.x())
+        dy = float(pos.y() - self._last_mouse_pos.y())
+        self._last_mouse_pos = pos
+        if self._drag_left:
+            self.orbit_yaw_deg = float(np.clip(self.orbit_yaw_deg + dx * 0.12, -28.0, 28.0))
+            self.orbit_pitch_deg = float(np.clip(self.orbit_pitch_deg + dy * 0.10, -22.0, 22.0))
+            self.update()
             return
-        x = (event.position().x() / max(1.0, self.width())) * 2.0 - 1.0
-        y = (event.position().y() / max(1.0, self.height())) * 2.0 - 1.0
-        self.pose = NormalizedPose(x=float(x), y=float(y), z=self.pose.z, valid=True)
+        if self._drag_right:
+            sx = self.camera.window_half_w * 2.0 / max(1.0, self.width())
+            sy = self.camera.window_half_h * 2.0 / max(1.0, self.height())
+            self.pan_x += dx * sx
+            self.pan_y -= dy * sy
+            self.update()
+            return
+        if self.use_mouse_mock:
+            x = (pos.x() / max(1.0, self.width())) * 2.0 - 1.0
+            y = (pos.y() / max(1.0, self.height())) * 2.0 - 1.0
+            self.pose = NormalizedPose(x=float(x), y=float(y), z=self.pose.z, valid=True)
+
+    def mousePressEvent(self, event):
+        self._last_mouse_pos = event.position()
+        if event.button() == Qt.LeftButton:
+            self._drag_left = True
+            self.setFocus(Qt.MouseFocusReason)
+        elif event.button() == Qt.RightButton:
+            self._drag_right = True
+            self.setFocus(Qt.MouseFocusReason)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._drag_left = False
+        elif event.button() == Qt.RightButton:
+            self._drag_right = False
 
     def wheelEvent(self, event):
-        if not self.use_mouse_mock:
-            return
         dz = event.angleDelta().y() / 1200.0
-        self.pose = NormalizedPose(x=self.pose.x, y=self.pose.y, z=float(np.clip(self.pose.z + dz, -1.0, 1.0)), valid=True)
+        self.zoom_offset = float(np.clip(self.zoom_offset - dz * 0.22, -1.8, 1.8))
+        if self.use_mouse_mock:
+            self.pose = NormalizedPose(x=self.pose.x, y=self.pose.y, z=float(np.clip(self.pose.z + dz, -1.0, 1.0)), valid=True)
+        self.update()
+
+    def keyPressEvent(self, event):
+        if event.isAutoRepeat():
+            return
+        step_x = self.camera.window_half_w * 0.06
+        step_y = self.camera.window_half_h * 0.06
+        if event.key() == Qt.Key_W:
+            self.pan_y += step_y
+        elif event.key() == Qt.Key_S:
+            self.pan_y -= step_y
+        elif event.key() == Qt.Key_A:
+            self.pan_x -= step_x
+        elif event.key() == Qt.Key_D:
+            self.pan_x += step_x
+        elif event.key() == Qt.Key_R:
+            self.orbit_yaw_deg = 0.0
+            self.orbit_pitch_deg = 0.0
+            self.pan_x = 0.0
+            self.pan_y = 0.0
+            self.zoom_offset = 0.0
+        else:
+            super().keyPressEvent(event)
+            return
+        self.update()
 
     def cleanup(self) -> None:
         # Ensure a current context for GL resource deletion on strict drivers.
