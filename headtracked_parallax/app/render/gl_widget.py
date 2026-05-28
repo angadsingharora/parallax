@@ -458,13 +458,13 @@ class ParallaxGLWidget(QOpenGLWidget):
             return
         step_x = self.camera.window_half_w * 0.06
         step_y = self.camera.window_half_h * 0.06
-        if event.key() == Qt.Key_W:
+        if event.key() in (Qt.Key_W, Qt.Key_Up):
             self.pan_y += step_y
-        elif event.key() == Qt.Key_S:
+        elif event.key() in (Qt.Key_S, Qt.Key_Down):
             self.pan_y -= step_y
-        elif event.key() == Qt.Key_A:
+        elif event.key() in (Qt.Key_A, Qt.Key_Left):
             self.pan_x -= step_x
-        elif event.key() == Qt.Key_D:
+        elif event.key() in (Qt.Key_D, Qt.Key_Right):
             self.pan_x += step_x
         elif event.key() == Qt.Key_R:
             self.orbit_yaw_deg = 0.0
