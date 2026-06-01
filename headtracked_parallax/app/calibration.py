@@ -18,6 +18,14 @@ def response_curve(v: float) -> float:
     return float(np.sign(v) * (abs(v) ** 1.5))
 
 
+def _is_finite_pose(pose: HeadPose) -> bool:
+    return bool(
+        np.isfinite(
+            [pose.tx, pose.ty, pose.tz, pose.yaw, pose.pitch, pose.roll, pose.timestamp]
+        ).all()
+    )
+
+
 @dataclass(slots=True)
 class CalibrationModel:
     range_tx: float = 120.0
@@ -36,7 +44,7 @@ class CalibrationModel:
         self.ready = False
 
     def capture_neutral(self, pose: HeadPose) -> None:
-        if not pose.valid:
+        if not pose.valid or not _is_finite_pose(pose):
             return
         self.neutral_tx = pose.tx
         self.neutral_ty = pose.ty
@@ -46,7 +54,7 @@ class CalibrationModel:
         self.ready = True
 
     def apply(self, pose: HeadPose) -> NormalizedPose:
-        if not pose.valid:
+        if not pose.valid or not _is_finite_pose(pose):
             return NormalizedPose(valid=False, timestamp=pose.timestamp)
 
         if not self.ready:

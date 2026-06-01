@@ -1,6 +1,6 @@
 import pytest
 
-from app.smoothing import EMAFilter, PoseSmoother
+from app.smoothing import EMAFilter, LostTrackingDecay, PoseSmoother
 from app.types import NormalizedPose
 
 
@@ -27,3 +27,19 @@ def test_invalid_pose_passthrough():
     invalid = NormalizedPose(valid=False)
     out = s.smooth(invalid)
     assert out.valid is False
+
+
+def test_ema_filter_clamps_alpha_range():
+    high = EMAFilter(alpha=2.0)
+    high.update(0.0)
+    assert high.update(1.0) == pytest.approx(1.0)
+
+    low = EMAFilter(alpha=-1.0)
+    low.update(0.0)
+    assert low.update(1.0) == pytest.approx(0.0)
+
+
+def test_lost_tracking_decay_handles_invalid_tau_and_dt():
+    d = LostTrackingDecay(tau_seconds=0.0)
+    out = d.decay_toward_center(NormalizedPose(x=1.0, valid=False), dt=float("nan"))
+    assert out.x == pytest.approx(1.0)

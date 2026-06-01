@@ -34,3 +34,10 @@ def test_calibration_invalid_pose():
     c = CalibrationModel()
     n = c.apply(HeadPose(valid=False))
     assert n.valid is False
+
+
+def test_calibration_rejects_non_finite_pose_values():
+    c = CalibrationModel()
+    c.capture_neutral(HeadPose(tx=0.0, ty=0.0, tz=500.0, yaw=0.0, pitch=0.0, roll=0.0, valid=True))
+    n = c.apply(HeadPose(tx=float("nan"), ty=0.0, tz=500.0, yaw=0.0, pitch=0.0, roll=0.0, valid=True))
+    assert n.valid is False

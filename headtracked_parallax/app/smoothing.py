@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional
+import math
 
 from .types import NormalizedPose
 
@@ -8,6 +9,10 @@ from .types import NormalizedPose
 class EMAFilter:
     alpha: float
     value: Optional[float] = None
+
+    def __post_init__(self) -> None:
+        # Keep EMA stable even if UI/config passes out-of-range values.
+        self.alpha = max(0.0, min(1.0, float(self.alpha)))
 
     def reset(self) -> None:
         self.value = None
@@ -46,11 +51,12 @@ class PoseSmoother:
 
 class LostTrackingDecay:
     def __init__(self, tau_seconds: float = 0.4):
-        self.tau_seconds = tau_seconds
+        self.tau_seconds = max(1e-4, float(tau_seconds))
 
     def decay_toward_center(self, pose: NormalizedPose, dt: float) -> NormalizedPose:
         if pose.valid:
             return pose
+        dt = 0.0 if not math.isfinite(dt) else max(0.0, float(dt))
         k = max(0.0, min(1.0, dt / self.tau_seconds))
         return NormalizedPose(
             x=pose.x * (1.0 - k),
