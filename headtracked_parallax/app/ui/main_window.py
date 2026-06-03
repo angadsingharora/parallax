@@ -26,6 +26,7 @@ from ..tracker.face_landmarks import FaceLandmarkTracker
 from ..tracker.gaze_estimator import estimate_eye_offset, fuse_head_and_eye
 from ..tracker.head_pose import LANDMARK_IDS, draw_pose_axes, estimate_from_landmarks
 from ..render.gl_widget import ParallaxGLWidget
+from ..render.presets import RENDER_PRESETS, RenderPreset
 from .controls_panel import ControlsPanel
 
 
@@ -202,6 +203,7 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self.status_label)
 
         self.controls.calibrate_clicked.connect(self.on_calibrate)
+        self.controls.view_preset_selected.connect(self.on_view_preset_selected)
         self.controls.toggle_fullscreen.connect(self.on_fullscreen)
         self.controls.toggle_debug.connect(self.on_debug)
         self.controls.parallax_x_changed.connect(self.on_parallax_x)
@@ -236,6 +238,8 @@ class MainWindow(QMainWindow):
         self.ui_timer.timeout.connect(self.tick)
         self.ui_timer.start(16)
 
+        self.apply_render_preset(RENDER_PRESETS["Balanced"])
+
     def on_calibrate(self) -> None:
         self.worker.capture_neutral()
 
@@ -244,6 +248,14 @@ class MainWindow(QMainWindow):
             self.showFullScreen()
         else:
             self.showNormal()
+
+    def on_view_preset_selected(self, name: str) -> None:
+        preset = RENDER_PRESETS.get(name)
+        if preset is None:
+            self.statusBar().showMessage(f"Unknown preset: {name}", 2000)
+            return
+        self.apply_render_preset(preset)
+        self.statusBar().showMessage(f"Preset applied: {preset.name}", 1800)
 
     def on_debug(self, enabled: bool) -> None:
         self.gl.set_debug_overlay(enabled)
@@ -289,6 +301,18 @@ class MainWindow(QMainWindow):
 
     def on_drift_intensity_changed(self, v: float) -> None:
         self.gl.set_drift_intensity(v)
+
+    def apply_render_preset(self, preset: RenderPreset) -> None:
+        self.controls.apply_render_preset(preset)
+        self.gl.set_parallax_strength(preset.parallax_x, preset.parallax_y, preset.parallax_z)
+        self.gl.set_depth_spread(preset.depth_spread)
+        self.gl.set_fov(preset.fov)
+        self.gl.set_render_distance(preset.render_distance)
+        self.gl.set_target_fps(preset.render_fps)
+        self.gl.set_neutral_tone(preset.neutral_tone)
+        self.gl.set_cinematic_drift(preset.cinematic_drift)
+        self.gl.set_drift_intensity(preset.drift_intensity)
+        self.gl.set_depth_debug_mode(preset.depth_debug)
 
     def toggle_mouse_mock(self) -> None:
         self.gl.use_mouse_mock = not self.gl.use_mouse_mock

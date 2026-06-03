@@ -1,7 +1,8 @@
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSignalBlocker, Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QFormLayout,
+    QHBoxLayout,
     QGroupBox,
     QPushButton,
     QSlider,
@@ -9,9 +10,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..render.presets import RenderPreset
+
 
 class ControlsPanel(QWidget):
     calibrate_clicked = Signal()
+    view_preset_selected = Signal(str)
     toggle_fullscreen = Signal(bool)
     toggle_debug = Signal(bool)
     parallax_x_changed = Signal(float)
@@ -41,6 +45,13 @@ class ControlsPanel(QWidget):
         btn_calibrate = QPushButton("Calibrate Neutral")
         btn_calibrate.clicked.connect(self.calibrate_clicked.emit)
         actions_layout.addWidget(btn_calibrate)
+
+        preset_row = QHBoxLayout()
+        for name in ("Balanced", "Immersive", "Studio"):
+            btn = QPushButton(name)
+            btn.clicked.connect(lambda _checked=False, preset=name: self.view_preset_selected.emit(preset))
+            preset_row.addWidget(btn)
+        actions_layout.addLayout(preset_row)
         root.addWidget(actions)
 
         controls = QGroupBox("Controls")
@@ -139,3 +150,27 @@ class ControlsPanel(QWidget):
 
         root.addWidget(controls)
         root.addStretch(1)
+
+    def apply_render_preset(self, preset: RenderPreset) -> None:
+        slider_values = (
+            (self.slider_parallax_x, int(round(preset.parallax_x * 100.0))),
+            (self.slider_parallax_y, int(round(preset.parallax_y * 100.0))),
+            (self.slider_depth, int(round(preset.parallax_z * 100.0))),
+            (self.slider_depth_spread, int(round(preset.depth_spread * 100.0))),
+            (self.slider_fov, int(round(preset.fov))),
+            (self.slider_render_distance, int(round(preset.render_distance))),
+            (self.slider_render_fps, int(round(preset.render_fps))),
+            (self.slider_drift_intensity, int(round(preset.drift_intensity * 100.0))),
+        )
+        checkbox_values = (
+            (self.cb_neutral_tone, preset.neutral_tone),
+            (self.cb_cinematic_drift, preset.cinematic_drift),
+            (self.cb_depth_debug, preset.depth_debug),
+        )
+
+        for widget, value in slider_values:
+            with QSignalBlocker(widget):
+                widget.setValue(value)
+        for widget, value in checkbox_values:
+            with QSignalBlocker(widget):
+                widget.setChecked(value)
