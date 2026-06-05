@@ -60,6 +60,42 @@ def test_initialize_gl_queries_anisotropy_before_texture_load(monkeypatch):
     assert w.program == 101
 
 
+def test_initialize_gl_falls_back_to_gles_shader_variant(monkeypatch):
+    w = _bare_widget()
+    compiled_sources = []
+
+    monkeypatch.setattr(gw, "glEnable", lambda *_: None)
+    monkeypatch.setattr(gw, "glBlendFunc", lambda *_: None)
+    monkeypatch.setattr(gw, "glPixelStorei", lambda *_: None)
+    monkeypatch.setattr(gw, "glGenVertexArrays", lambda n: 201)
+    monkeypatch.setattr(gw, "glGenBuffers", lambda n: 301)
+    monkeypatch.setattr(gw, "glBindVertexArray", lambda *_: None)
+    monkeypatch.setattr(gw, "glBindBuffer", lambda *_: None)
+    monkeypatch.setattr(gw, "glBufferData", lambda *_: None)
+    monkeypatch.setattr(gw, "glEnableVertexAttribArray", lambda *_: None)
+    monkeypatch.setattr(gw, "glVertexAttribPointer", lambda *_: None)
+    monkeypatch.setattr(gw, "glUseProgram", lambda *_: None)
+    monkeypatch.setattr(gw, "glUniform1i", lambda *_: None)
+    monkeypatch.setattr(gw, "glGetUniformLocation", lambda *_: 1)
+    monkeypatch.setattr(gw.ParallaxGLWidget, "_query_anisotropy_limit", lambda self: 1.0)
+    monkeypatch.setattr(gw.ParallaxGLWidget, "_load_textures", lambda self: None)
+
+    def fake_compile_shader(src, shader_type):
+        compiled_sources.append(src.splitlines()[0])
+        if src.startswith("#version 330 core"):
+            raise RuntimeError("desktop GLSL unavailable")
+        return f"shader-{shader_type}"
+
+    monkeypatch.setattr(gw, "compileShader", fake_compile_shader)
+    monkeypatch.setattr(gw, "compileProgram", lambda *args: 707)
+
+    gw.ParallaxGLWidget.initializeGL(w)
+
+    assert w.gl_failed is False
+    assert w.program == 707
+    assert compiled_sources[:3] == ["#version 330 core", "#version 300 es", "#version 300 es"]
+
+
 def test_cleanup_makes_context_current_before_gl_deletes(monkeypatch):
     w = _bare_widget()
     events = []

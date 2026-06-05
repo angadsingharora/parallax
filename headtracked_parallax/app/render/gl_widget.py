@@ -101,6 +101,18 @@ VERTICES = np.array(
 )
 
 
+def _shader_variants(vertex_src: str, fragment_src: str) -> list[tuple[str, str]]:
+    vert_body = "\n".join(vertex_src.splitlines()[1:])
+    frag_body = "\n".join(fragment_src.splitlines()[1:])
+    return [
+        (vertex_src, fragment_src),
+        (
+            "#version 300 es\n" + vert_body,
+            "#version 300 es\nprecision mediump float;\n" + frag_body,
+        ),
+    ]
+
+
 class ParallaxGLWidget(QOpenGLWidget):
     def __init__(self, assets_dir: Path, parent=None):
         super().__init__(parent)
@@ -234,10 +246,7 @@ class ParallaxGLWidget(QOpenGLWidget):
             shader_dir = Path(__file__).parent / "shaders"
             vert = (shader_dir / "layer.vert").read_text(encoding="utf-8")
             frag = (shader_dir / "layer.frag").read_text(encoding="utf-8")
-            self.program = compileProgram(
-                compileShader(vert, GL_VERTEX_SHADER),
-                compileShader(frag, GL_FRAGMENT_SHADER),
-            )
+            self.program = self._compile_shader_program(vert, frag)
 
             self.vao = glGenVertexArrays(1)
             self.vbo = glGenBuffers(1)
@@ -268,6 +277,19 @@ class ParallaxGLWidget(QOpenGLWidget):
         except Exception as exc:
             self.gl_failed = True
             self.gl_error = str(exc)
+
+    def _compile_shader_program(self, vertex_src: str, fragment_src: str) -> int:
+        last_exc = None
+        for vert_variant, frag_variant in _shader_variants(vertex_src, fragment_src):
+            try:
+                return compileProgram(
+                    compileShader(vert_variant, GL_VERTEX_SHADER),
+                    compileShader(frag_variant, GL_FRAGMENT_SHADER),
+                )
+            except Exception as exc:
+                last_exc = exc
+        assert last_exc is not None
+        raise last_exc
 
     def _query_anisotropy_limit(self) -> float:
         if GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT is None:
